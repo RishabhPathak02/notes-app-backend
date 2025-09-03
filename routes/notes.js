@@ -4,71 +4,56 @@ import { authenticateJWT } from "../middleware/auth.js";
 
 const router = express.Router();
 
-// CREATE
+// Get tasks
+router.get("/", authenticateJWT, async (req, res) => {
+  const userId = req.user.userId;
+  const q = await pool.query(
+    "SELECT id, title, content, status, created_at FROM notes WHERE user_id=$1 ORDER BY created_at DESC",
+    [userId]
+  );
+  res.json(q.rows);
+});
+
+// Create task
 router.post("/", authenticateJWT, async (req, res) => {
   const { title, content } = req.body;
-  try {
-    const result = await pool.query(
-      "INSERT INTO notes (user_id, title, content) VALUES ($1, $2, $3) RETURNING id, title, content",
-      [req.user.userId, title, content]
-    );
-    res.json(result.rows[0]);
-  } catch (err) {
-    console.error("Create note error:", err);
-    res.status(500).json({ error: "Failed to create note" });
-  }
+  const userId = req.user.userId;
+  if (!title) return res.status(400).json({ message: "Title required" });
+
+  const q = await pool.query(
+    "INSERT INTO notes(user_id, title, content, status) VALUES($1,$2,$3,$4) RETURNING *",
+    [userId, title, content|| "", "pending"]
+  );
+  res.json(q.rows[0]);
 });
 
-// READ
-router.get("/", authenticateJWT, async (req, res) => {
-  try {
-    const result = await pool.query(
-      "SELECT id, title,status, content AS content FROM notes WHERE user_id = $1",
-      [req.user.userId]
-    );
-    console.log("fetch notes : ",result.rows);
-    res.json(result.rows);
-  } catch (err) {
-    console.error("Fetch notes error:", err);
-    res.status(500).json({ error: "Failed to fetch notes" });
-  }
-});
-
-// UPDATE
+// Update task
 router.put("/:id", authenticateJWT, async (req, res) => {
   const { id } = req.params;
   const { title, content, status } = req.body;
+  const userId = req.user.userId;
 
-  try {
-    const result = await pool.query(
-      `UPDATE notes 
-       SET title = $1, content = $2, status = $3 
-       WHERE id = $4 AND user_id = $5 
-       RETURNING id, title, content, status`,
-      [title, content, status, id, req.user.userId]
-    );
+  const q = await pool.query(
+    "UPDATE notes SET title=$1, content=$2, status=$3 WHERE id=$4 AND user_id=$5 RETURNING *",
+    [title, content, status, id, userId]
+  );
+  if (!q.rows.length) return res.status(404).json({ message: "Not found" });
 
-    if (!result.rows.length) {
-      return res.status(404).json({ error: "Note not found" });
-    }
-
-    res.json(result.rows[0]);
-  } catch (err) {
-    console.error("Update error:", err);
-    res.status(500).json({ error: "Failed to update note" });
-  }
+  res.json(q.rows[0]);
 });
 
-// DELETE
+// Delete task
 router.delete("/:id", authenticateJWT, async (req, res) => {
   const { id } = req.params;
-  try {
-    await pool.query("DELETE FROM notes WHERE id = $1 AND user_id = $2", [id, req.user.userId]);
-    res.json({ success: true });
-  } catch (err) {
-    console.error("Delete error:", err);
-    res.status(500).json({ error: "Failed to delete note" });
-  }
+  const userId = req.user.userId;
+
+  const q = await pool.query("DELETE FROM notes WHERE id=$1 AND user_id=$2 RETURNING id", [
+    id,
+    userId,
+  ]);
+  if (!q.rows.length) return res.status(404).json({ message: "Not found" });
+
+  res.json({ success: true });
 });
 
 export default router;
