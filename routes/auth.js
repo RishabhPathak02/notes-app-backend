@@ -5,7 +5,6 @@ import { pool } from "../db.js";
 
 const router = express.Router();
 
-// ==================== REGISTER ====================
 router.post("/register", async (req, res) => {
   const { username, password } = req.body;
 

@@ -23,10 +23,10 @@ router.post("/", authenticateJWT, async (req, res) => {
 router.get("/", authenticateJWT, async (req, res) => {
   try {
     const result = await pool.query(
-      "SELECT id, title, content AS content FROM notes WHERE user_id = $1",
+      "SELECT id, title,status, content AS content FROM notes WHERE user_id = $1",
       [req.user.userId]
     );
-    // console.log("fetch notes : ",result.rows);
+    console.log("fetch notes : ",result.rows);
     res.json(result.rows);
   } catch (err) {
     console.error("Fetch notes error:", err);
@@ -37,13 +37,21 @@ router.get("/", authenticateJWT, async (req, res) => {
 // UPDATE
 router.put("/:id", authenticateJWT, async (req, res) => {
   const { id } = req.params;
-  const { title, content } = req.body;
+  const { title, content, status } = req.body;
+
   try {
     const result = await pool.query(
-      "UPDATE notes SET title = $1, content = $2 WHERE id = $3 AND user_id = $4 RETURNING id, title, content ",
-      [title, content, id, req.user.userId]
+      `UPDATE notes 
+       SET title = $1, content = $2, status = $3 
+       WHERE id = $4 AND user_id = $5 
+       RETURNING id, title, content, status`,
+      [title, content, status, id, req.user.userId]
     );
-    if (!result.rows.length) return res.status(404).json({ error: "Note not found" });
+
+    if (!result.rows.length) {
+      return res.status(404).json({ error: "Note not found" });
+    }
+
     res.json(result.rows[0]);
   } catch (err) {
     console.error("Update error:", err);
